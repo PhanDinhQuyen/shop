@@ -18,4 +18,8 @@ router.post(
 
 router.get("/verify", UserController.activeAccountUser);
 
+router.post("/forget", UserController.forgetPasswordUser);
+
+router.get("/forget", UserController.changePasswordUser);
+
 module.exports = router;

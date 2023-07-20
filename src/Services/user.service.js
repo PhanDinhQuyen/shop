@@ -9,6 +9,8 @@ const bcrypt = require("bcrypt");
 const TokenService = require("./token.service");
 const { getData, decodedToken } = require("../Utils");
 const MailService = require("./mail.service");
+const crypto = require("crypto");
+const { serverConfig } = require("../Configs");
 
 class UserService {
   static async signIn({ username, password, email }) {
@@ -16,23 +18,12 @@ class UserService {
     if (holderUser?.isVerified) {
       throw new BadRequestError(`Email has already been existing`);
     }
-    const passwordHash = await bcrypt.hash(password, 10);
 
     if (holderUser) {
-      const user = await userModel
-        .findByIdAndUpdate(holderUser._id, {
-          username,
-          password: passwordHash,
-        })
-        .lean();
-
-      const activeToken = await TokenService.createActiveToken(user);
-
-      return {
-        message: `Please check your email address`,
-        activeToken,
-      };
+      await userModel.findByIdAndDelete(holderUser._id);
     }
+
+    const passwordHash = await bcrypt.hash(password, 10);
 
     const newUser = await userModel.create({
       email,
@@ -41,9 +32,10 @@ class UserService {
     });
 
     const activeToken = await TokenService.createActiveToken(newUser);
+    const url = `${serverConfig.urlClient}/active?token=${activeToken}&userId=${newUser._id}`;
     await MailService.sendMail({
       email,
-      url: activeToken,
+      url,
       content: `Verified account`,
     });
     return {
@@ -108,9 +100,10 @@ class UserService {
 
     if (!holderUser.isVerified) {
       const activeToken = await TokenService.createActiveToken(holderUser);
+      const url = `${serverConfig.urlClient}/active?token=${activeToken}&userId=${holderUser._id}`;
       await MailService.sendMail({
         email,
-        url: activeToken,
+        url,
         content: "Verified account",
       });
       throw new NotFoundRequestError(
@@ -126,6 +119,78 @@ class UserService {
         user: getData([`username`, `_id`, "role"], holderUser),
         tokens,
       },
+    };
+  }
+
+  static async forgetPassword({ email }) {
+    const user = await userModel.findOne({ email }).lean().exec();
+    if (!user) {
+      throw new NotFoundRequestError(`Account does not exist`);
+    }
+    if (!user.isVerified) {
+      throw new NotFoundRequestError(`Account does not exist`);
+    }
+
+    const activeToken = await TokenService.createActiveToken(user);
+
+    const url = `${serverConfig.urlClient}/forget?token=${activeToken}&userId=${user._id}`;
+
+    await MailService.sendMail({
+      email,
+      url,
+      content: "Confirm reset password",
+    });
+
+    // const randomPassword = crypto.randomBytes(8).toString("base64");
+    // const passwordHash = await bcrypt.hash(randomPassword, 10);
+
+    // const updateUser = await userModel
+    //   .findByIdAndUpdate(user._id, {
+    //     $set: {
+    //       password: passwordHash,
+    //     },
+    //   })
+    //   .lean();
+
+    return {
+      message: `Please check your email`,
+      activeToken,
+    };
+  }
+
+  static async changePassword({ activeToken, userId }) {
+    const user = await userModel.findById(userId).lean();
+    if (!user) {
+      throw new NotFoundRequestError(`Account does not exist`);
+    }
+    const token = await TokenService.findTokenWithUserId({ userId });
+    if (!token) {
+      throw new UnauthorizedRequestError(`Unauthorized`);
+    }
+    const decoded = decodedToken(activeToken, token.activeKey);
+    if (userId !== decoded._id) {
+      throw new UnauthorizedRequestError(`Unauthorized`);
+    }
+    const randomPassword = crypto.randomBytes(8).toString("base64");
+    const passwordHash = await bcrypt.hash(randomPassword, 10);
+
+    const updateUser = await userModel.findByIdAndUpdate(userId, {
+      $set: {
+        password: passwordHash,
+      },
+    });
+
+    await TokenService.deleteTokensWithID(token);
+
+    await MailService.sendMail({
+      email: user.email,
+      url: randomPassword,
+      content: "Your password has been updated to " + randomPassword,
+    });
+
+    return {
+      message: `Your password has been updated`,
+      meta: {},
     };
   }
 
@@ -166,7 +231,7 @@ class UserService {
     });
 
     return {
-      msg: "Refresh token successfully",
+      messsage: "Refresh token successfully",
       meta: {
         user: getData([`username`, `_id`, "role"], user),
         tokens: storageTokens,

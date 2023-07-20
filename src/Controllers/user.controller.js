@@ -45,6 +45,31 @@ class UserController {
       next(error);
     }
   }
+
+  static async forgetPasswordUser(req, res, next) {
+    try {
+      return res
+        .status(StatusCodes.OK)
+        .json(await UserService.forgetPassword(req.body));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async changePasswordUser(req, res, next) {
+    try {
+      const { token: activeToken, userId } = req.query;
+
+      return res.status(StatusCodes.OK).json(
+        await UserService.changePassword({
+          activeToken,
+          userId,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = UserController;

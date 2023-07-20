@@ -4,17 +4,25 @@ require("dotenv").config();
 const express = require(`express`);
 const helmet = require(`helmet`);
 const morgan = require(`morgan`);
+const cors = require(`cors`);
 const { StatusCodes, ReasonPhrases } = require(`http-status-codes`);
 const { NotFoundRequestError } = require(`./Core/error.response`);
+const { serverConfig } = require("./Configs");
 
 const App = express();
 
 // Middleware
+
+const corsOption = {
+  credentials: true,
+  origin: serverConfig.urlClient,
+};
+
 App.use(helmet());
 App.use(express.json());
 App.use(express.urlencoded({ extended: true }));
 App.use(morgan(`dev`));
-
+App.use(cors(corsOption));
 // Routes
 App.use("/api/v1", require(`./Routes/user.route`));
 

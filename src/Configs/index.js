@@ -8,6 +8,8 @@ const mailConfig = {
 
 const serverConfig = {
   port: process.env.PORT,
+  urlServer: process.env.URL_SERVER,
+  urlClient: process.env.URL_CLIENT,
 };
 
 const databaseConfig = {
