@@ -133,32 +133,20 @@ class UserService {
 
     const activeToken = await TokenService.createActiveToken(user);
 
-    const url = `${serverConfig.urlClient}/forget?token=${activeToken}&userId=${user._id}`;
+    const url = `${serverConfig.urlClient}/verify?token=${activeToken}&userId=${user._id}`;
 
     await MailService.sendMail({
       email,
       url,
       content: "Confirm reset password",
     });
-
-    // const randomPassword = crypto.randomBytes(8).toString("base64");
-    // const passwordHash = await bcrypt.hash(randomPassword, 10);
-
-    // const updateUser = await userModel
-    //   .findByIdAndUpdate(user._id, {
-    //     $set: {
-    //       password: passwordHash,
-    //     },
-    //   })
-    //   .lean();
-
     return {
       message: `Please check your email`,
       activeToken,
     };
   }
 
-  static async changePassword({ activeToken, userId }) {
+  static async verifyActiveToken({ activeToken, userId }) {
     const user = await userModel.findById(userId).lean();
     if (!user) {
       throw new NotFoundRequestError(`Account does not exist`);
@@ -171,26 +159,36 @@ class UserService {
     if (userId !== decoded._id) {
       throw new UnauthorizedRequestError(`Unauthorized`);
     }
-    const randomPassword = crypto.randomBytes(8).toString("base64");
-    const passwordHash = await bcrypt.hash(randomPassword, 10);
-
-    const updateUser = await userModel.findByIdAndUpdate(userId, {
-      $set: {
-        password: passwordHash,
-      },
-    });
-
     await TokenService.deleteTokensWithID(token);
 
-    await MailService.sendMail({
-      email: user.email,
-      url: randomPassword,
-      content: "Your password has been updated to " + randomPassword,
-    });
+    const tokens = await TokenService.createTokensPair(user);
 
     return {
-      message: `Your password has been updated`,
-      meta: {},
+      meta: {
+        tokens,
+        user: getData([`username`, `_id`, "role"], user),
+      },
+    };
+  }
+
+  static async changePassword({ _id, password }) {
+    const user = await userModel.findById(_id).lean();
+    if (!user) {
+      throw new NotFoundRequestError("User not found");
+    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const updateUser = await userModel
+      .findByIdAndUpdate(_id, {
+        $set: {
+          password: passwordHash,
+        },
+      })
+      .lean();
+
+    await TokenService.deleteTokensWithID({ _id });
+
+    return {
+      message: `Update password successfully`,
     };
   }
 
@@ -205,7 +203,8 @@ class UserService {
 
     const token = await TokenService.findTokenWithRefreshToken({
       refreshToken,
-    }).lean();
+    });
+
     if (!token) {
       throw new UnauthorizedRequestError(`Unauthorized 2`);
     }
@@ -223,11 +222,6 @@ class UserService {
     const updateTokenUsed = await TokenService.updateTokenUsed({
       userId: user._id,
       refreshToken,
-    });
-
-    console.log({
-      storageTokens,
-      updateTokenUsed,
     });
 
     return {

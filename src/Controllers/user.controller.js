@@ -56,14 +56,30 @@ class UserController {
     }
   }
 
-  static async changePasswordUser(req, res, next) {
-    try {
-      const { token: activeToken, userId } = req.query;
+  static async verifyActiveTokenUser(req, res, next) {
+    const { token: activeToken, userId } = req.query;
 
+    try {
       return res.status(StatusCodes.OK).json(
-        await UserService.changePassword({
+        await UserService.verifyActiveToken({
           activeToken,
           userId,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async changePasswordUser(req, res, next) {
+    const { password } = req.body;
+    const { _id } = req.user;
+
+    try {
+      return res.status(StatusCodes.OK).json(
+        await UserService.changePassword({
+          _id,
+          password,
         })
       );
     } catch (error) {

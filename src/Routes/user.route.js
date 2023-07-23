@@ -20,6 +20,12 @@ router.get("/verify", UserController.activeAccountUser);
 
 router.post("/forget", UserController.forgetPasswordUser);
 
-router.get("/forget", UserController.changePasswordUser);
+router.get("/verify", UserController.verifyActiveTokenUser);
+
+router.post(
+  "/change_password",
+  wrapperAsyncError(Auth.verifyAccessToken),
+  UserController.changePasswordUser
+);
 
 module.exports = router;

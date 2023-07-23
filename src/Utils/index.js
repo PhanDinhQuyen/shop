@@ -19,7 +19,7 @@ const wrapperAsyncError = (func) => (req, res, next) =>
 const decodedToken = (token, key) =>
   jwt.decode(token, key, (data, error) => {
     if (error) {
-      throw UnauthorizedRequestError(`Unauthorized`);
+      throw UnauthorizedRequestError(`Expired token`);
     }
     return data;
   });
